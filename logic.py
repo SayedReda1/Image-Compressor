@@ -18,6 +18,7 @@ Algorithm for encoding image:
 4. create a matrix of labels which best represents the image (compressed image)
 """
 
+import pickle
 import numpy as np
 from PIL import Image
 from math import ceil, floor, log2
@@ -79,10 +80,20 @@ def writeToImage(imageMatrix: list[list[Vector]], imagePath: str):
     image.save(imagePath)
 
 def readFromCompressedFile(filePath: str) -> tuple:
-    pass
+    """ Reads the compressed file and returns labels and codebook """
+    with open(filePath, "rb") as file:
+        data = pickle.load(file)
 
-def writeToCompressedFile(compressedMatrix: list[list[int]], codebook: dict, filePath: str):
-    pass
+    return data["labels"], data["codebook"]
+
+def writeToCompressedFile(labels: list[list[int]], codebook: dict, filePath: str):
+    """ Writes the compressed matrix and codebook to a file """
+    data = {
+        "labels": labels,
+        "codebook": codebook
+    }
+    with open(filePath, "wb") as file:
+        pickle.dump(data, file)
 
 #########################################
 ########### Helper Functions ############
@@ -131,13 +142,6 @@ def average(imageVectors: list[list[Vector]]) -> dict:
     
     return result
 
-# - average(vectors) -> codebook = dict(0, Vector)
-# - while True:
-#     - if codebook.size < size: dict1 = split() TODO
-#     - foreach vector: selectNearestVector(dict1)
-#     - codebook = average(vectors) TODO
-#     - if codebook == dict1 and codebook.size == size: break
-# - return codebook
 def generateCodebook(imageVectors: list[list[Vector]], requiredSize: int) -> dict:
     """ Generates best codebook of required size to represent the image """
     # Change required size to the nearest power of 2
@@ -170,17 +174,17 @@ def generateCodebook(imageVectors: list[list[Vector]], requiredSize: int) -> dic
     
     return codebook
     
-def generateCompressedMatrix(imageVectors: list[list[Vector]]) -> list[list[int]]:
+def generateLabels(imageVectors: list[list[Vector]]) -> list[list[int]]:
     """ Generates the compressed matrix of labels """
-    compressedMatrix = []
+    labels = []
     # Create matrix of labels
     for vectors in imageVectors:
         row = []
         for vector in vectors:
             row.append(vector.nearestVector)
-        compressedMatrix.append(row)
+        labels.append(row)
 
-    return compressedMatrix
+    return labels
 
 #########################################
 ############ Main functions #############
@@ -204,33 +208,45 @@ def compress(imagePath: str, codebookSize: int, blockSize: list):
     # Return the compressed image matrix and codebook
     return compressed_matrix, codebook
 
-# TODO: Implement decompress function
-# def decompress(compressedFilePath: str):
-#     compressedMatrix, codebook = readFromCompressedFile(compressedFilePath)
-
-def decompress(compressedMatrix, codebook) -> list[list[int]]:
+def decompress(labels, codebook) -> list[list[int]]:
     """ Decompresses the compressed matrix using the codebook """
     blockWidth, blockHeight = codebook[0].width, codebook[0].height
-    imageWidth, imageHeight = codebook[0].width * len(compressedMatrix[0]), codebook[0].height * len(compressedMatrix)
-    decompressedMatrix = [[0 for _ in range(imageWidth)] for _ in range(imageHeight)]
+    imageWidth, imageHeight = codebook[0].width * len(labels[0]), codebook[0].height * len(labels)
+    decompressed = [[0 for _ in range(imageWidth)] for _ in range(imageHeight)]
 
     # Fill decompressed matrix
     for i in range(0, imageHeight, blockHeight):
         for j in range(0, imageWidth, blockWidth):
-            vector = codebook[compressedMatrix[i//blockHeight][j//blockWidth]]
+            vector = codebook[labels[i//blockHeight][j//blockWidth]]
             for x in range(blockHeight):
                 for y in range(blockWidth):
-                    decompressedMatrix[i+x][j+y] = vector.pixels[x][y]
+                    decompressed[i+x][j+y] = vector.pixels[x][y]
     
-    return decompressedMatrix
-
-
+    return decompressed
 
 if __name__ == "__main__":
-    image = readFromImage("imgs/apple.jpeg", [4, 4])
-    codebook = generateCodebook(image, 32)
-    compressed = generateCompressedMatrix(image)
+    image = readFromImage("tests/house.bmp", [4, 4])
+    codebook = generateCodebook(image, 8)
+    labels = generateLabels(image)
 
-    decompressed = decompress(compressed, codebook)
+    decompressed = decompress(labels, codebook)
 
-    writeToImage(decompressed, "imgs/apple_compressed_32.jpeg")
+    writeToCompressedFile(labels, codebook, "tests/compressed.bin")
+
+    labels2, codebook2 = readFromCompressedFile("tests/compressed.bin")
+
+    print(labels == labels2)
+    
+    # Print each codebook
+    # for i, vector in codebook.items():
+    #     print(f"Vector {i}:")
+    #     for row in vector.pixels:
+    #         print(row)
+    #     print()
+    
+    # Print each codebook
+    for i, vector in codebook2.items():
+        print(f"Vector {i}:")
+        for row in vector.pixels:
+            print(row)
+        print()

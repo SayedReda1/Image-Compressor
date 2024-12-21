@@ -1,5 +1,5 @@
 # Image Compressor
-This project is a simulation for image compression using vector quantization and LBG algorithm
+This project is a simulation for grayscale image compression using vector quantization and LBG algorithm
 
 ### How To Run
 1. Clone the repository and cd into it:

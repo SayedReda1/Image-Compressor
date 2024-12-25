@@ -26,26 +26,16 @@ from math import ceil, floor, log2
 #########################################
 ############ Input / Ouput ##############
 #########################################
-def readFromImage(imagePath: str, blockSize: tuple) -> np.array:
+def readImage(imagePath: str) -> np.array:
     """ Reads grayscale image and returns matrix of vectors """
     # Read image
     image = Image.open(imagePath).convert('L')
     imageMatrix = np.array(image)
 
-    # Add padding if required
-    bh, bw = blockSize
-    h, w = imageMatrix.shape
-    if h % bh != 0:
-        # Add padding to the bottom
-        imageMatrix = np.vstack((imageMatrix, np.zeros((bh-h%bh, w), dtype='B')))
-    if w % bw != 0:
-        # Add padding to the right
-        imageMatrix = np.hstack((imageMatrix, np.zeros((h, bw-w%bw), dtype='B')))
-
     return imageMatrix
 
 
-def writeToImage(imageMatrix: np.array, imagePath: str):
+def writeImage(imageMatrix: np.array, imagePath: str):
     """ Converts matrix of vectors to image and writes it to disk """
     image = Image.fromarray(imageMatrix)
     image.save(imagePath)
@@ -69,6 +59,23 @@ def writeToCompressedFile(labels: list[list[int]], codebook: dict, filePath: str
 #########################################
 ########### Helper Functions ############
 #########################################
+def partition(imageMatrix: np.array, blockSize: tuple) -> np.array:
+    """ Partitions the image matrix into blocks """
+    bh, bw = blockSize
+    img_h, img_w = imageMatrix.shape
+    # add padding if needed
+    if img_h % bh != 0:
+        img_h += bh - img_h % bh
+    if img_w % bw != 0:
+        img_w += bw - img_w % bw
+    blocks = np.zeros((img_h//bh, img_w//bw, bh, bw), dtype='B')
+
+    for i in range(0, img_h, bh):
+        for j in range(0, img_w, bw):
+            blocks[i//bh][j//bw] = imageMatrix[i:i+bh, j:j+bw]
+    
+    return blocks
+
 def split(codebook: dict[np.array]) -> dict:
     """ Splits the each codeword into two vectors """
     newCodebook = dict()
@@ -86,20 +93,18 @@ def split(codebook: dict[np.array]) -> dict:
 
     return newCodebook
 
-def average(imageMatrix: np.array,
-             nearestVectorMatrix: np.array,
-             blockSize: tuple) -> dict:
+def average(blocks: np.array,
+             nearestBlockMatrix: np.array,) -> dict:
     """ Calculates the average of vectors that have the same nearest vector """
     result = dict()
     freq = dict()
-    bh, bw = blockSize
-    img_h, img_w = imageMatrix.shape
+    height, width, bh, bw = blocks.shape
 
     # Sum related vectors
-    for i in range(0, img_h, bh):
-        for j in range(0, img_w, bw):
-            vector = imageMatrix[i:i+bh, j:j+bw]
-            nearest = nearestVectorMatrix[i//bh][j//bw]
+    for i in range(0, height):
+        for j in range(0, width):
+            vector = blocks[i][j]
+            nearest = nearestBlockMatrix[i][j]
             if nearest not in result:
                 result[nearest] = np.zeros(blockSize, dtype='f')
                 freq[nearest] = 0
@@ -125,17 +130,16 @@ def selectNearestVector(vector: np.array, codebook: dict) -> int:
     
     return nearestVector
 
-def distributeVectors(imageMatrix: np.array, nearestVectorMatrix: np.array,
-                      codebook: dict, blockSize: tuple):
-    """ Distributes vectors to their nearest vector """
-    bh, bw = blockSize
-    img_h, img_w = imageMatrix.shape
+def distributeBlocks(blocks: np.array, nearestBlockMatrix: np.array,
+                      codebook: dict):
+    """ Distributes blocks to their nearest vector """
+    height, width, bh, bw = blocks.shape
 
     # Nearest codeword for each vector
-    for i in range(0, img_h, bh):
-        for j in range(0, img_w, bw):
-            vector = imageMatrix[i:i+bh, j:j+bw]
-            nearestVectorMatrix[i//bh][j//bw] = selectNearestVector(vector, codebook)
+    for i in range(0, height):
+        for j in range(0, width):
+            block = blocks[i][j]
+            nearestBlockMatrix[i][j] = selectNearestVector(block, codebook)
 
 def equal(codebook1: dict, codebook2: dict) -> bool:
     """ Compares two codebooks """
@@ -143,20 +147,18 @@ def equal(codebook1: dict, codebook2: dict) -> bool:
         return False
     
     for i in codebook1.keys():
-        if not np.array_equal(codebook1[i], codebook2[i]):
+        if np.all(np.abs(codebook1[i] - codebook2[i]) > 1):
             return False
     
     return True
 
-def generateCodebook(imageMatrix: np.array,
-                     nearestVectorMatrix: np.array,
-                     blockSize: tuple,
+def generateCodebook(blocks: np.array,
+                     nearestBlockMatrix: np.array,
                      codebookSize: int) -> dict:
     """ Generates best codebook of required size to represent the image """
     # Change required size to the nearest power of 2
     codebookSize = 2**ceil(log2(codebookSize))
-    maxIterations = int(log2(codebookSize) + 10)
-    codebook = average(imageMatrix, nearestVectorMatrix, blockSize)
+    codebook = average(blocks, nearestBlockMatrix)
 
     # Loop until the condition is met or the max iterations is reached
     while True:
@@ -166,10 +168,10 @@ def generateCodebook(imageMatrix: np.array,
         
         # Distribute vectors to each's nearest vector
         # nearest vector is manipulated by reference
-        distributeVectors(imageMatrix, nearestVectorMatrix, codebook, blockSize)
+        distributeBlocks(blocks, nearestBlockMatrix, codebook)
         
         # Calculate new codebook
-        newCodebook = average(imageMatrix, nearestVectorMatrix, blockSize)
+        newCodebook = average(blocks, nearestBlockMatrix)
         if len(newCodebook) == codebookSize and equal(codebook, newCodebook):
             break
         codebook = newCodebook
@@ -186,17 +188,16 @@ def generateCodebook(imageMatrix: np.array,
 def compress(imagePath: str, codebookSize: int, blockSize: list):
     """ Compresses the image using vector quantization """
     # Read image
-    imageMatrix = readFromImage(imagePath)
+    imageMatrix = readImage(imagePath)
+    blocks = partition(imageMatrix, blockSize)
 
     # Generate codebook & select nearest block for each vector
     # nearest block matrix is the compressed matrix
-    nearestVectorMatrix = np.zeros((imageMatrix.shape[0]//blockSize[0],
-                             imageMatrix.shape[1]//blockSize[1]), 
-                             dtype='i')
-    codebook = generateCodebook(imageMatrix, nearestVectorMatrix, blockSize, codebookSize)
+    nearestBlockMatrix = np.zeros((blocks.shape[0], blocks.shape[1]), dtype='i')
+    codebook = generateCodebook(blocks, nearestBlockMatrix, codebookSize)
 
     # Return the compressed image matrix and codebook
-    return nearestVectorMatrix, codebook
+    return nearestBlockMatrix, codebook
 
 def decompress(labels, codebook) -> np.array:
     """ Decompresses the compressed matrix using the codebook """
@@ -217,25 +218,32 @@ def decompress(labels, codebook) -> np.array:
 if __name__ == "__main__":
     imagePath = "tests/house.bmp"
     blockSize = (2, 2)
-    codebookSize = 16
+    codebookSize = 32
 
-    # imageMatrix = np.array([
+    imageVectors = readImage(imagePath)
+    labels, codebook = compress(imagePath, codebookSize, blockSize)
+    writeToCompressedFile(labels, codebook, "tests/compressed.bin")
+
+    print("Compressed")
+
+    # Decompress
+    labels, codebook = readFromCompressedFile("tests/compressed.bin")
+    decompressed = decompress(labels, codebook)
+    writeImage(decompressed, "tests/decompressed.bmp")
+
+    print("Decompressed")
+
+    # image = np.array([
     #     [1, 2, 7, 9, 4, 11],
     #     [3, 4, 6, 6, 12, 12],
     #     [4, 9, 15, 14, 9, 9],
     #     [10, 10, 20, 18, 8, 8],
     #     [4, 3, 17, 16, 1, 4],
-    #     [4, 5, 18, 18, 5, 6]
+    #     [4, 5, 18, 18, 5, 6],
     # ])
-    imageMatrix = readFromImage(imagePath, blockSize)
-    nearestVectorMatrix = np.zeros((int(imageMatrix.shape[0]/blockSize[0]),
-                                   int(imageMatrix.shape[1]/blockSize[1])),
-                                   dtype='i')
-    codebook = generateCodebook(imageMatrix, nearestVectorMatrix, blockSize, codebookSize)
-    writeToCompressedFile(nearestVectorMatrix, codebook, "tests/compressed.bin")
-
-    # Decompress
-    labels, codebook = readFromCompressedFile("tests/compressed.bin")
-    decompressed = decompress(labels, codebook)
-    writeToImage(decompressed, "tests/decompressed.bmp")
     
+    # blocks = partition(image, (2, 2))
+    # nearestBlockMatrix = np.zeros((3, 3), dtype='i')
+    # codebook = generateCodebook(blocks, nearestBlockMatrix, 4)
+    # print(codebook)
+    # print(nearestBlockMatrix)

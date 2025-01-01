@@ -160,7 +160,7 @@ def generateCodebook(blocks: np.array,
     codebookSize = 2**ceil(log2(codebookSize))
     codebook = average(blocks, nearestBlockMatrix)
 
-    # Loop until the condition is met or the max iterations is reached
+    # Loop until the condition is met
     while True:
         # Split codebook if required
         if len(codebook) < codebookSize:
@@ -229,7 +229,7 @@ if __name__ == "__main__":
     # Decompress
     labels, codebook = readFromCompressedFile("tests/compressed.bin")
     decompressed = decompress(labels, codebook)
-    writeImage(decompressed, "tests/decompressed.bmp")
+    writeImage(decompressed, "tests/decompressed2.bmp")
 
     print("Decompressed")
 

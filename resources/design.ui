@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>813</width>
-    <height>524</height>
+    <height>409</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -23,7 +23,7 @@ QPushButton {
 	background-color: #0d6efd;
 	color: white;
 	border: none;
-	padding: 7px;
+	padding: 6px;
 }
 QPushButton:hover, QPushButton:disabled {
 	background-color: #3d8bfd;
@@ -243,6 +243,11 @@ color: rgb(109, 109, 109);</string>
                <height>0</height>
               </size>
              </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
              <property name="cursor">
               <cursorShape>PointingHandCursor</cursorShape>
              </property>
@@ -271,6 +276,11 @@ color: rgb(109, 109, 109);</string>
                <width>140</width>
                <height>0</height>
               </size>
+             </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
              </property>
              <property name="cursor">
               <cursorShape>PointingHandCursor</cursorShape>
@@ -467,6 +477,11 @@ color: rgb(109, 109, 109);</string>
                <height>0</height>
               </size>
              </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
              <property name="cursor">
               <cursorShape>PointingHandCursor</cursorShape>
              </property>
@@ -496,6 +511,11 @@ color: rgb(109, 109, 109);</string>
                <height>0</height>
               </size>
              </property>
+             <property name="font">
+              <font>
+               <pointsize>10</pointsize>
+              </font>
+             </property>
              <property name="cursor">
               <cursorShape>PointingHandCursor</cursorShape>
              </property>
@@ -518,16 +538,6 @@ QPushButton:hover, QPushButton:disabled {
        </widget>
       </item>
      </layout>
-    </item>
-    <item>
-     <widget class="QProgressBar" name="progressBar">
-      <property name="value">
-       <number>0</number>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignCenter</set>
-      </property>
-     </widget>
     </item>
    </layout>
   </widget>
